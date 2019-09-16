@@ -20,6 +20,7 @@ static char * log_buf;
 static char * log_head;
 static char * log_tail;
 static int logbuf_size;
+spinlock_t log_lock;
 
 int logbuf_init(size_t size)
 {
@@ -36,6 +37,8 @@ int logbuf_init(size_t size)
     printk("log_head:%p---log_tail:%p---log_buf:%p", log_head, log_tail, log_buf);
     logbuf_size = KLOG_BULK_SIZE * size - 1;
 
+    spin_lock_init(&log_lock);
+
 err:
     return ret;
 }
@@ -43,6 +46,9 @@ err:
 int tos_add_log(char *buf, int len)
 {
     u64 remain = (logbuf_size - (log_head - log_buf));
+
+    spin_lock(&log_lock);
+
     if(len > remain)
     {
         memcpy(log_head, buf, remain);
@@ -56,6 +62,8 @@ int tos_add_log(char *buf, int len)
         memcpy(log_head,buf,len);
         log_head += len;
     }
+
+    spin_unlock(&log_lock);
 
     if (log_head != log_tail)
         wake_up_interruptible(&tos_wait);
@@ -93,6 +101,8 @@ int tos_read_log(char __user *buf, size_t count)
     char * text;
 	int len = 0;
 
+    spin_lock(&log_lock);
+
     if (log_head < log_tail) {
         len = (log_buf + logbuf_size) - log_tail + log_head - log_buf;
         text = kmalloc(len, GFP_KERNEL|__GFP_ZERO);
@@ -113,6 +123,9 @@ int tos_read_log(char __user *buf, size_t count)
         goto err;
 	}
     log_tail = log_head;
+
+    spin_unlock(&log_lock);
+
 err:
     if (text)
         kfree(text);
