@@ -9,14 +9,11 @@
 #include <linux/syslog.h>
 #include <linux/string.h>
 #include <linux/slab.h>
-#include <linux/timer.h>
-#include <linux/jiffies.h>
 
 #include <linux/uaccess.h>
 #include <asm/io.h>
 
 #define KLOG_BULK_SIZE 1024
-struct timer_list mytimer;
 
 static DECLARE_WAIT_QUEUE_HEAD(tos_wait);
 static char * log_buf;
@@ -91,13 +88,6 @@ int tos_log(const char *fmt, ...)
 }
 EXPORT_SYMBOL(tos_log);
 
-static void myfunc(unsigned long data)
-{
-    tos_log("%s\n", (char *)data);
-    mod_timer(&mytimer, jiffies + 2*HZ);
-
-}
-
 int tos_read_log(char __user *buf, size_t count)
 {
     char * text;
@@ -161,7 +151,6 @@ static ssize_t toskmsg_read(struct file *file, char __user *buf, size_t count, l
 
 static unsigned int toskmsg_poll(struct file *file, poll_table *wait)
 {
-    printk("toskmsg_poll start");
 	poll_wait(file, &tos_wait, wait);
 	if (log_head != log_tail)
 		return POLLIN | POLLRDNORM;
@@ -180,17 +169,12 @@ static __init int proc_toskmsg_init(void)
 {
 	proc_create("toskmsg", S_IRUSR, NULL, &proc_toskmsg_operations);
     logbuf_init(1);
-
-    setup_timer(&mytimer, myfunc, (unsigned long)"Hello, world!");
-    mytimer.expires = jiffies + HZ;
-    add_timer(&mytimer);
 	return 0;
 }
 
 __exit void proc_toskmsg_exit(void)
 {
     if (log_buf) kfree(log_buf);
-    del_timer(&mytimer);
     remove_proc_entry("toskmsg", NULL);
 }
 module_init(proc_toskmsg_init);

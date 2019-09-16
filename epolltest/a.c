@@ -43,7 +43,7 @@ int main()
                 int ret = read(fd, buf, sizeof(buf) - 1);
                 if(ret > 0)
                     printf("%s", buf);
-                lseek(fd, 0, SEEK_SET);
+                //lseek(fd, 0, SEEK_SET);
             }
             else 
                 printf("22222\n");
